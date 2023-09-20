@@ -1,0 +1,77 @@
+
+ 
+ CREATE VIEW ch_level_stats
+   SELECT "character".name, "character".level, "character".level * class.life AS life, "character".level * class.def AS def, "character".level * class.speed AS speed, "character".level * class.str AS str, "character".level * class.power AS power
+   FROM "character", class
+   WHERE "character".class = class.name;
+    
+  
+ CREATE VIEW ch_armour_stats
+  SELECT character.name, equipment.name AS equipment_name, equipment.life, equipment.def, equipment.str, equipment.power, equipment.speed
+  FROM character,equipment, armour, armour_instance
+  WHERE character.name = armour_instance.cname AND equipment.eid = armour.eid AND armour_instance.eid = armour.eid;
+
+
+ CREATE VIEW ch_armour_gem_stats AS
+  SELECT armour_instance.cname, SUM(gem.life) as life, SUM(gem.str) as str, SUM(gem.def) as def, SUM(gem.speed) as speed, SUM(gem.power) as power
+  FROM armour_instance, armour_gem, gem
+  WHERE armour_instance.aid = armour_gem.aid AND armour_gem.gem = gem.name
+  GROUP BY cname;
+
+
+ CREATE VIEW ch_weapon_gem_stats AS
+  SELECT weapon_instance.cname, SUM(gem.life) as life, SUM(gem.str) as str, SUM(gem.def) as def, SUM(gem.speed) as speed, SUM(gem.power) as power
+  FROM weapon_instance, weapon_gem, gem
+  WHERE weapon_instance.wid = weapon_gem.wid AND weapon_gem.gem = gem.name
+  GROUP BY cname;
+
+
+ CREATE VIEW ch_secondary_gem_stats AS
+  SELECT secondary_instance.cname, SUM(gem.life) as life, SUM(gem.str) as str, SUM(gem.def) as def, SUM(gem.speed) as speed, SUM(gem.power) as power
+  FROM secondary_instance, secondary_gem, gem
+  WHERE secondary_instance.sid = secondary_gem.sid AND secondary_gem.gem = gem.name
+  GROUP BY cname;
+
+
+CREATE VIEW ch_gems_stats
+  SELECT "character".name, gem.name AS gem_name, gem.life,gem.def, gem.speed, gem.str, gem.power
+  FROM "character", gem, armour_instance, weapon_instance, secondary_instance, armour_gem, weapon_gem, secondary_gem
+  WHERE "character".name = armour_instance.cname AND armour_instance.aid = armour_gem.aid AND armour_gem.gem = gem.name;
+
+
+CREATE VIEW ch_weapon_stats
+ SELECT "character".name, equipment.name AS equipment_name, equipment.life, equipment.def, equipment.speed, equipment.str, equipment.power
+ FROM "character", equipment, weapon, weapon_instance
+ WHERE "character".name = weapon_instance.cname AND equipment.eid = weapon.eid AND weapon_instance.eid = weapon.eid;
+
+
+CREATE VIEW ch_secondary_stats
+ SELECT "character".name, equipment.name AS equipment_name, equipment.life, equipment.def, equipment.speed, equipment.str, equipment.power
+ FROM "character", equipment, secondary, secondary_instance
+ WHERE "character".name = secondary_instance.cname AND equipment.eid = secondary.eid AND secondary_instance.eid = secondary.eid;
+
+
+CREATE or REPLACE VIEW report4 AS
+	SELECT L.name, L.level as level, L.life as l_life, L.str as l_str, L.def as l_def, L.speed as l_speed, L.power as l_power, W.equipment_name as w_name, W.life as w_life, W.str as w_str, W.def as w_def, W.speed as w_speed, W.power as w_power, A.equipment_name as a_name, A.life as a_life, A.str as a_str, A.def as a_def, A.speed as a_speed, A.power as a_power, S.equipment_name as s_name, S.life as s_life, S.str as s_str, S.def as s_def, S.speed as s_speed, S.power as s_power, W.equipment_name as wg_name, WG.life as wg_life, WG.str as wg_str, WG.def as wg_def, WG.speed as wg_speed, WG.power as wg_power, A.equipment_name as ag_name, AG.life as ag_life, AG.str as ag_str, AG.def as ag_def, AG.speed as ag_speed, AG.power as ag_power, S.equipment_name as sg_name, SG.life as sg_life, SG.str as sg_str, SG.def as sg_def, SG.speed as sg_speed, SG.power as sg_power
+	FROM
+	ch_level_stats L
+	LEFT OUTER JOIN ch_weapon_stats W ON L.name = W.name 
+  LEFT OUTER JOIN ch_armour_stats A ON L.name = A.name
+  LEFT OUTER JOIN ch_secondary_stats S ON L.name = S.name
+  LEFT OUTER JOIN ch_weapon_gem_stats WG ON L.name = WG.cname
+  LEFT OUTER JOIN ch_armour_gem_stats AG ON L.name = AG.cname
+  LEFT OUTER JOIN ch_secondary_gem_stats SG ON L.name = SG.cname
+  ;
+	 
+CREATE VIEW ch_armour_and_gem
+  SELECT view3.cname, view3.armour_id, view3.equipment_name, armour_gem.gem
+  FROM view3
+  LEFT JOIN armour_gem ON view3.armour_id = armour_gem.aid;
+
+CREATE VIEW ch_weapon_and_gem
+  SELECT view4.cname, view4.weapon_id, view4.equipment_name, weapon_gem.gem
+  FROM view4
+  LEFT JOIN weapon_gem ON view4.weapon_id = weapon_gem.wid;
+
+
+

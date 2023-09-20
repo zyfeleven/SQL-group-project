@@ -1,0 +1,147 @@
+CREATE OR REPLACE FUNCTION check_gem_number_weapon() RETURNS trigger as $$
+DECLARE
+  weapon_record RECORD;
+  gem_number INTEGER;
+  max_number INTEGER;
+BEGIN
+  gem_number := 0;
+  SELECT num_slots FROM equipment, weapon_instance, weapon
+  WHERE NEW.wid = weapon_instance.wid AND weapon_instance.eid = weapon.eid AND weapon.eid = equipment.eid
+  INTO max_number;
+
+  FOR weapon_record IN EXECUTE 'SELECT * FROM weapon_gem'
+  
+  LOOP
+  IF NEW.wid = weapon_record.wid THEN
+  gem_number := gem_number+1;
+  END IF;
+  END LOOP;
+  IF max_number <= gem_number THEN
+    RAISE EXCEPTION 'This equipment cant have more gems on it!';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_gem_number_weapon_trigger
+BEFORE INSERT ON weapon_gem
+FOR EACH ROW
+EXECUTE PROCEDURE check_gem_number_weapon();
+
+create or replace function update_weapon_stats_gem() returns trigger as $$
+declare
+	gem_record RECORD;
+	ch_record RECORD;
+	weapon_record RECORD;
+	add_life INTEGER;
+	add_power INTEGER;
+  	add_str INTEGER;
+  	add_def INTEGER;
+  	add_speed INTEGER;
+begin
+	SELECT * FROM gem WHERE name = NEW.gem INTO gem_record;
+	SELECT * FROM weapon_instance WHERE wid = NEW.wid INTO weapon_record;
+	FOR ch_record IN EXECUTE 'SELECT * FROM character'
+	LOOP
+	IF ch_record.name = weapon_record.cname
+	then
+	add_life := ch_record.life + gem_record.life;
+	add_power:= ch_record.power + gem_record.power;
+ 	add_str:= ch_record.str + gem_record.str;
+  	add_def:= ch_record.def + gem_record.def;
+  	add_speed:= ch_record.speed + gem_record.speed;
+	
+	update character set life=add_life where name=ch_record.name;
+	update character set power=add_power where name=ch_record.name;
+	update character set str=add_str where name=ch_record.name;
+	update character set def=add_def where name=ch_record.name;
+	update character set speed=add_speed where name=ch_record.name;
+	end if;
+	end loop;
+	return new;
+end;
+$$ LANGUAGE plpgsql;
+
+create trigger update_weapon_gem_stats
+before insert on weapon_gem
+for each row
+execute procedure update_weapon_stats_gem();
+
+create or replace function delete_weapon_stats_gem() returns trigger as $$
+declare
+	gem_record RECORD;
+	ch_record RECORD;
+	weapon_record RECORD;
+	add_life INTEGER;
+	add_power INTEGER;
+  	add_str INTEGER;
+  	add_def INTEGER;
+  	add_speed INTEGER;
+begin
+	SELECT * FROM gem WHERE name = OLD.gem INTO gem_record;
+	SELECT * FROM weapon_instance WHERE wid = OLD.wid INTO weapon_record;
+	FOR ch_record IN EXECUTE 'SELECT * FROM character'
+	LOOP
+	IF ch_record.name = weapon_record.cname
+	then
+	add_life := ch_record.life - gem_record.life;
+	add_power:= ch_record.power - gem_record.power;
+ 	add_str:= ch_record.str - gem_record.str;
+  	add_def:= ch_record.def - gem_record.def;
+  	add_speed:= ch_record.speed - gem_record.speed;
+	
+	update character set life=add_life where name=ch_record.name;
+	update character set power=add_power where name=ch_record.name;
+	update character set str=add_str where name=ch_record.name;
+	update character set def=add_def where name=ch_record.name;
+	update character set speed=add_speed where name=ch_record.name;
+	end if;
+	end loop;
+	return old;
+end;
+$$ LANGUAGE plpgsql;
+
+create trigger delete_weapon_gem_stats
+before delete on weapon_gem
+for each row
+execute procedure delete_weapon_stats_gem();
+
+CREATE OR REPLACE FUNCTION check_gem_and_weapon_level() RETURNS trigger as $$
+DECLARE
+  weapon_record RECORD;
+  gem_level INTEGER;
+BEGIN
+  SELECT min_level FROM gem, weapon_gem WHERE gem.name = weapon_gem.gem INTO gem_level;
+   
+  SELECT * FROM weapon_instance, weapon, equipment
+  WHERE weapon_instance.wid = NEW.wid AND weapon_instance.eid = weapon.eid AND weapon.eid = equipment.eid
+  INTO weapon_record;
+  
+  IF weapon_record.min_level < gem_level
+  THEN
+	RAISE EXCEPTION 'Gem_min_level is larger than Equipment_min_level!';
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger check_gem_and_weapon_level_trigger
+before insert on weapon_gem
+for each row
+execute procedure check_gem_and_weapon_level();
+
+
+
+CREATE OR REPLACE FUNCTION update_gem_and_weapon() RETURNS trigger as $$
+
+BEGIN
+  RAISE EXCEPTION 'It is not allowed to modify wid! You need to delete it first!';
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger update_gem_and_weapon_trigger
+before update on weapon_gem
+for each row
+execute procedure update_gem_and_weapon();

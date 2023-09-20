@@ -1,0 +1,51 @@
+CREATE OR REPLACE FUNCTION check_skill_level() RETURNS trigger as $$
+DECLARE
+  ch_level INTEGER;
+  skill_level INTEGER;
+BEGIN
+  SELECT min_level FROM skill
+  WHERE NEW.skill = skill.name
+  INTO skill_level;
+
+  SELECT level FROM character
+  WHERE NEW.character = character.name
+  INTO ch_level;
+
+  IF ch_level < skill_level THEN
+    RAISE EXCEPTION 'This skill cant be assigned to the character: Level too low!';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_skill_level_trigger
+BEFORE INSERT ON owns_skill
+FOR EACH ROW
+EXECUTE PROCEDURE check_skill_level();
+
+CREATE OR REPLACE FUNCTION check_allowed_skill()
+RETURNS TRIGGER AS $$
+DECLARE
+    is_allowed boolean;
+    ch RECORD;
+BEGIN
+    SELECT * FROM character WHERE character.name = NEW.character INTO ch;
+    SELECT EXISTS (
+        SELECT 1
+        FROM allowed_skill
+        WHERE allowed_skill.class = ch.class
+          AND allowed_skill.skill = NEW.skill
+    ) INTO is_allowed;
+
+    IF NOT is_allowed THEN
+        RAISE EXCEPTION 'The skill is not allowed for the character class.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER allowed_skill_trigger
+    BEFORE INSERT OR UPDATE ON owns_skill
+    FOR EACH ROW
+    EXECUTE PROCEDURE check_allowed_skill();

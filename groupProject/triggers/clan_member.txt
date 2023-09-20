@@ -1,0 +1,50 @@
+
+create or replace function check_member() returns trigger as $$
+declare
+	member_record RECORD;
+	member char(40);
+	
+begin
+	member = NEW.character;
+
+	for member_record in execute 'select * from clan_member'
+	loop
+	if member_record.character = member
+	then
+	raise exception 'member is already a member of a clan';
+	end if;
+	end loop;
+
+	return NEW;
+end;
+$$ LANGUAGE plpgsql;
+
+create trigger check_the_member
+before insert on clan_member
+for each row
+execute procedure check_member();
+
+create or replace function delete_member() returns trigger as $$
+declare
+	character char(40);
+	clan_record RECORD;
+	
+begin
+	character = OLD.character;
+
+	for clan_record in execute 'select * from clan'
+	loop
+	if clan_record.chief = character
+	then
+	raise exception 'member is the leader of the clan';
+	end if;
+	end loop;
+	
+	return OLD;
+end;
+$$ LANGUAGE plpgsql;
+
+create trigger delete_the_member
+before delete on clan_member
+for each row
+execute procedure delete_member();

@@ -1,0 +1,204 @@
+-- Example SQL schema for COSC 3P32 Spring 2023 Project
+-- This incorporates the alterations from Part 2
+-- Last Revised: March 31, 2023
+
+-- To drop your schema before reloading it uncomment the following lines
+-- But remember: it will also drop your triggers that may be defined on the tables
+
+-- drop table armour_gem;
+-- drop table armour_instance;
+-- drop table armour;
+-- drop table secondary_gem;
+-- drop table secondary_instance;
+-- drop table secondary;
+-- drop table weapon_gem;
+-- drop table weapon_instance;
+-- drop table weapon;
+-- drop table gem;
+-- drop table can_equip;
+-- drop table equipment;
+-- drop table owns_skill;
+-- drop table auto_skill;
+-- drop table allowed_skill;
+-- drop table skill;
+-- drop table clan_member;
+-- drop table clan;
+-- drop table "character";
+-- drop table class;
+
+
+-- The stats in this table are the per-level increases each class recieves
+create table class (
+  name char(20) primary key,
+  description varchar(80),
+  life integer default 0,
+  power integer default 0,
+  str integer default 0,
+  def integer default 0,
+  speed integer default 0
+);
+
+create table skill (
+  name char(32) primary key,
+  description varchar(128),
+  min_level integer not null,
+  power_cost integer
+);
+
+create table character (
+  name char(40) primary key,
+  class char(20) not null,
+  level integer default 0 CHECK (level >= 0),
+  exp integer default 0 CHECK (exp >= 0),
+  life integer default 100,
+  power integer default 10,
+  str integer default 10,
+  def integer default 10,
+  speed integer default 10,
+  foreign key (class) references class(name) on update cascade
+);
+-- if you don't want to drop everything you can run these commands to add the check
+-- alter table character add constraint "character_exp_check" CHECK (exp >= 0);
+-- alter table character add constraint "character_level_check" CHECK (level >= 0)
+
+create table equipment (
+  eid serial primary key,
+  name varchar(40),
+  min_level integer not null,
+  num_slots integer not null default 0,
+  life integer default 0,
+  power integer default 0,
+  str integer default 0,
+  def integer default 0,
+  speed integer default 0
+);
+
+create table owns_skill (
+  character char(40),
+  skill char(32),
+  primary key (character, skill),
+  foreign key (character) references character(name) on delete cascade on update cascade,
+  foreign key (skill) references skill(name) on update cascade
+);
+
+create table allowed_skill (
+  class char(20),
+  skill char(32),
+  primary key (class, skill),
+  foreign key (class) references class(name) on delete cascade on update cascade,
+  foreign key (skill) references skill(name) on update cascade
+);
+
+create table auto_skill (
+  class char(20),
+  skill char(32),
+  level integer not null,
+  primary key (class, skill),
+  foreign key (class) references class(name) on delete cascade on update cascade,
+  foreign key (skill) references skill(name) on update cascade
+);
+
+create table can_equip (
+  class char(20),
+  eid integer,
+  primary key (class, eid),
+  foreign key (class) references class(name) on delete cascade on update cascade,
+  foreign key (eid) references equipment(eid) on delete cascade on update cascade
+);
+
+-- There should be some constraints to disallow overlap in these next three ---
+-- The other option is to convert without equipment/item and triplicate can_equip
+create table armour (
+  eid integer primary key,
+  foreign key (eid) references equipment on delete cascade on update cascade
+);
+
+create table weapon (
+  eid integer primary key,
+  foreign key (eid) references equipment on delete cascade on update cascade
+);
+
+create table secondary (
+  eid integer primary key,
+  foreign key (eid) references equipment on delete cascade on update cascade
+);
+
+-- Create copies of the items that can be augmented with gems per character
+create table armour_instance (
+  aid serial primary key,
+  eid integer not null,
+  cname char(40) not null,
+  unique(cname),
+  foreign key (eid) references armour on update cascade,
+  foreign key (cname) references character(name) on delete cascade on update cascade
+);
+
+create table weapon_instance (
+  wid serial primary key,
+  eid integer not null,
+  cname char(40) not null,
+  unique(cname),
+  foreign key (eid) references weapon on update cascade,
+  foreign key (cname) references character(name) on delete cascade on update cascade
+);
+
+create table secondary_instance (
+  sid serial primary key,
+  eid integer not null,
+  cname char(40) not null,
+  unique(cname),
+  foreign key (eid) references secondary on update cascade,
+  foreign key (cname) references character(name) on delete cascade on update cascade
+);
+
+create table gem (
+  name char(40) primary key,
+  min_level integer not null,
+  life integer default 0,
+  power integer default 0,
+  str integer default 0,
+  def integer default 0,
+  speed integer default 0
+);
+
+create table armour_gem (
+  aid integer,
+  gem char(40),
+  primary key (aid, gem),
+  foreign key (aid) references armour_instance on delete cascade on update cascade,
+  foreign key (gem) references gem(name) on update cascade
+);
+
+create table weapon_gem (
+  wid integer,
+  gem char(40),
+  primary key (wid, gem),
+  foreign key (wid) references weapon_instance on delete cascade on update cascade,
+  foreign key (gem) references gem(name) on update cascade
+);
+
+create table secondary_gem (
+  sid integer,
+  gem char(40),
+  primary key (sid, gem),
+  foreign key (sid) references secondary_instance on delete cascade on update cascade,
+  foreign key (gem) references gem(name) on update cascade
+);
+
+-- Need constraint to prevent a character from being a member of one clan but leader of another
+-- Also need to decide if the leader will have records in both tables
+create table clan (
+  name char(40) primary key,
+  chief char(40) unique not null,
+  foreign key (chief) references character(name) on update cascade
+);
+
+create table clan_member (
+  clan char(40),
+  character char(40) unique,
+  primary key (clan, character),
+  foreign key (clan) references clan(name) on delete cascade on update cascade,
+  foreign key (character) references character(name) on update cascade
+);
+
+

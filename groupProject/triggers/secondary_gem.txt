@@ -1,0 +1,147 @@
+CREATE OR REPLACE FUNCTION check_gem_number_secondary() RETURNS trigger as $$
+DECLARE
+  secondary_record RECORD;
+  gem_number INTEGER;
+  max_number INTEGER;
+BEGIN
+  gem_number := 0;
+  SELECT num_slots FROM equipment, secondary_instance, secondary
+  WHERE NEW.sid = secondary_instance.sid AND secondary_instance.eid = secondary.eid AND secondary.eid = equipment.eid
+  INTO max_number;
+
+  FOR secondary_record IN EXECUTE 'SELECT * FROM secondary_gem'
+  
+  LOOP
+  IF NEW.sid = secondary_record.sid THEN
+  gem_number := gem_number+1;
+  END IF;
+  END LOOP;
+  IF max_number <= gem_number THEN
+    RAISE EXCEPTION 'This equipment cant have more gems on it!';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_gem_number_secondary_trigger
+BEFORE INSERT ON secondary_gem
+FOR EACH ROW
+EXECUTE PROCEDURE check_gem_number_secondary();
+
+create or replace function update_secondary_stats_gem() returns trigger as $$
+declare
+	gem_record RECORD;
+	ch_record RECORD;
+	secondary_record RECORD;
+	add_life INTEGER;
+	add_power INTEGER;
+  	add_str INTEGER;
+  	add_def INTEGER;
+  	add_speed INTEGER;
+begin
+	SELECT * FROM gem WHERE name = NEW.gem INTO gem_record;
+	SELECT * FROM secondary_instance WHERE sid = NEW.sid INTO secondary_record;
+	FOR ch_record IN EXECUTE 'SELECT * FROM character'
+	LOOP
+	IF ch_record.name = secondary_record.cname
+	then
+	add_life := ch_record.life + gem_record.life;
+	add_power:= ch_record.power + gem_record.power;
+ 	add_str:= ch_record.str + gem_record.str;
+  	add_def:= ch_record.def + gem_record.def;
+  	add_speed:= ch_record.speed + gem_record.speed;
+	
+	update character set life=add_life where name=ch_record.name;
+	update character set power=add_power where name=ch_record.name;
+	update character set str=add_str where name=ch_record.name;
+	update character set def=add_def where name=ch_record.name;
+	update character set speed=add_speed where name=ch_record.name;
+	end if;
+	end loop;
+	return new;
+end;
+$$ LANGUAGE plpgsql;
+
+create trigger update_secondary_gem_stats
+before insert on secondary_gem
+for each row
+execute procedure update_secondary_stats_gem();
+
+create or replace function delete_secondary_stats_gem() returns trigger as $$
+declare
+	gem_record RECORD;
+	ch_record RECORD;
+	secondary_record RECORD;
+	add_life INTEGER;
+	add_power INTEGER;
+  	add_str INTEGER;
+  	add_def INTEGER;
+  	add_speed INTEGER;
+begin
+	SELECT * FROM gem WHERE name = OLD.gem INTO gem_record;
+	SELECT * FROM secondary_instance WHERE sid = OLD.sid INTO secondary_record;
+	FOR ch_record IN EXECUTE 'SELECT * FROM character'
+	LOOP
+	IF ch_record.name = secondary_record.cname
+	then
+	add_life := ch_record.life - gem_record.life;
+	add_power:= ch_record.power - gem_record.power;
+ 	add_str:= ch_record.str - gem_record.str;
+  	add_def:= ch_record.def - gem_record.def;
+  	add_speed:= ch_record.speed - gem_record.speed;
+	
+	update character set life=add_life where name=ch_record.name;
+	update character set power=add_power where name=ch_record.name;
+	update character set str=add_str where name=ch_record.name;
+	update character set def=add_def where name=ch_record.name;
+	update character set speed=add_speed where name=ch_record.name;
+	end if;
+	end loop;
+	return new;
+end;
+$$ LANGUAGE plpgsql;
+
+create trigger delete_secondary_gem_stats
+before delete on secondary_gem
+for each row
+execute procedure delete_secondary_stats_gem();
+
+
+CREATE OR REPLACE FUNCTION check_gem_and_secondary_level() RETURNS trigger as $$
+DECLARE
+  secondary_record RECORD;
+  gem_level INTEGER;
+BEGIN
+  SELECT min_level FROM gem, secondary_gem WHERE gem.name = secondary_gem.gem INTO gem_level;
+   
+  SELECT * FROM secondary_instance, secondary, equipment
+  WHERE secondary_instance.sid = NEW.sid AND secondary_instance.eid = secondary.eid AND secondary.eid = equipment.eid
+  INTO secondary_record;
+  
+  IF secondary_record.min_level < gem_level
+  THEN
+	RAISE EXCEPTION 'Gem_min_level is larger than Equipment_min_level!';
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger check_gem_and_secondary_level_trigger
+before insert on secondary_gem
+for each row
+execute procedure check_gem_and_secondary_level();
+
+
+CREATE OR REPLACE FUNCTION update_gem_and_secondary() RETURNS trigger as $$
+
+BEGIN
+  RAISE EXCEPTION 'It is not allowed to modify aid! You need to delete it first!';
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger update_gem_and_secondary_trigger
+before update on secondary_gem
+for each row
+execute procedure update_gem_and_secondary();

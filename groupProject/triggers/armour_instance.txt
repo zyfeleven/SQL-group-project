@@ -1,0 +1,106 @@
+CREATE OR REPLACE FUNCTION update_ch_stats_armour() RETURNS trigger as $$
+DECLARE
+  update_character RECORD;
+  armour_stats RECORD;
+BEGIN
+  SELECT * FROM character
+  WHERE character.name = NEW.cname
+  INTO update_character;
+  
+  SELECT * FROM armour,equipment,armour_instance
+  WHERE armour_instance.aid = NEW.aid AND armour_instance.eid = armour.eid AND armour.eid = equipment.eid
+  INTO armour_stats;
+
+  UPDATE character
+  SET life = update_character.life + armour_stats.life, str = update_character.str + armour_stats.str, def = update_character.def+armour_stats.def, speed = update_character.speed + armour_stats.speed, power = update_character.power + armour_stats.power
+  WHERE character.name = update_character.name;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_ch_stats_armour_trigger
+AFTER INSERT ON armour_instance
+FOR EACH ROW
+EXECUTE PROCEDURE update_ch_stats_armour();
+
+
+CREATE OR REPLACE FUNCTION update_ch_stats_armour_delete() RETURNS trigger as $$
+DECLARE
+  update_character RECORD;
+  armour_stats RECORD;
+BEGIN
+  DELETE * FROM armour_gem WHERE aid = OLD.aid;
+  SELECT * FROM character
+  WHERE character.name = OLD.cname
+  INTO update_character;
+  
+  SELECT * FROM armour,equipment
+  WHERE OLD.eid = armour.eid AND armour.eid = equipment.eid
+  INTO armour_stats;
+
+  UPDATE character
+  SET life = update_character.life - armour_stats.life, str = update_character.str - armour_stats.str, def = update_character.def-armour_stats.def, speed = update_character.speed - armour_stats.speed, power = update_character.power - armour_stats.power
+  WHERE character.name = update_character.name;
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_ch_stats_armour_delete_trigger
+BEFORE DELETE ON armour_instance
+FOR EACH ROW
+EXECUTE PROCEDURE update_ch_stats_armour_delete();
+
+CREATE OR REPLACE FUNCTION check_armor_level() RETURNS trigger as $$
+
+DECLARE 
+  char_level INTEGER;
+  armor_min_level INTEGER;
+BEGIN
+  SELECT level FROM character WHERE character.name = NEW.cname INTO char_level;
+  SELECT min_level FROM armour,equipment 
+  WHERE NEW.eid = armour.eid AND armour.eid = equipment.eid
+  INTO armor_min_level;
+ 
+  IF char_level < armor_min_level THEN
+      RAISE EXCEPTION 'it cannot equip character.Equipment level can not be greater than character level';
+  END IF;
+return new;
+END;
+$$ LANGUAGE plpgsql;
+
+
+
+
+CREATE TRIGGER check_armor_level_trigger 
+BEFORE INSERT ON armour_instance
+FOR EACH ROW
+EXECUTE PROCEDURE check_armor_level();
+
+CREATE OR REPLACE FUNCTION check_allowed_equipment()
+RETURNS TRIGGER AS $$
+DECLARE
+    is_allowed boolean;
+BEGIN
+    SELECT EXISTS (
+        SELECT 1
+        FROM can_equip, character
+        WHERE can_equip.class = character.class
+          AND can_equip.eid = NEW.eid
+          AND character.name = NEW.cname
+    ) INTO is_allowed;
+
+    IF NOT is_allowed THEN
+        RAISE EXCEPTION 'The equipment is not allowed for the character class.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER allowed_armour_trigger
+    BEFORE INSERT OR UPDATE ON armour_instance
+    FOR EACH ROW
+    EXECUTE PROCEDURE check_allowed_equipment();

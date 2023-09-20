@@ -1,0 +1,68 @@
+create or replace function check_chief() returns trigger as $$
+declare
+	clan_record RECORD;
+	member_record RECORD;
+	chief char(40);
+	
+begin
+	chief = NEW.chief;
+
+	for member_record in execute 'select * from clan_member'
+	loop
+	if member_record.character = chief
+	then
+	raise exception 'chief is already part of a clan';
+	end if;
+	end loop;
+	
+	return NEW;
+end;
+$$ LANGUAGE plpgsql;
+
+create trigger check_the_chief
+before insert on clan
+for each row
+execute procedure check_chief();
+
+
+create or replace function add_chief() returns trigger as $$
+declare
+	chief char(40);
+	
+begin
+	chief = NEW.chief;
+
+	insert into clan_member values(NEW.name, chief);
+	
+	return NEW;
+end;
+$$ LANGUAGE plpgsql;
+
+create trigger add_the_chief
+after insert on clan
+for each row
+execute procedure add_chief();
+
+
+
+create or replace function update_chief() returns trigger as $$
+declare
+	chief char(40);
+	member_record RECORD;
+	
+begin
+	chief = NEW.chief;
+
+	if NOT EXISTS (select 1 from clan_member where character = chief and clan = OLD.name) then
+	raise exception 'The new chief needs to be part of the clan';
+	end if;
+	
+	return NEW;
+end;
+$$ LANGUAGE plpgsql;
+
+create trigger update_the_chief
+before update on clan
+for each row
+execute procedure update_chief();
+

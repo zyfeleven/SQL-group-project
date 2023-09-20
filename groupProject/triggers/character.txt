@@ -1,0 +1,77 @@
+CREATE OR REPLACE FUNCTION prevent_update_level() RETURNS trigger as $$
+BEGIN
+  RAISE EXCEPTION 'It is not allowed to modify the level directly! You should update exp instead!';
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER prevent_update_level_trigger
+BEFORE UPDATE OF level ON character
+FOR EACH ROW
+EXECUTE PROCEDURE prevent_update_level();
+
+CREATE OR REPLACE FUNCTION check_auto_skill() RETURNS trigger as $$
+DECLARE
+  skill_record RECORD;
+  ch_record RECORD;
+  skill_exist BOOLEAN;
+BEGIN
+  SELECT * FROM character WHERE name = NEW.name INTO ch_record;
+  FOR skill_record IN EXECUTE 'SELECT * FROM auto_skill'
+  LOOP
+  SELECT EXISTS(
+  	SELECT 1
+ 	FROM owns_skill
+	WHERE skill = skill_record.skill AND character = ch_record.name
+  ) INTO skill_exist;
+  IF skill_record.class = ch_record.class AND skill_record.level <= ch_record.level AND NOT skill_exist
+  THEN
+  INSERT INTO owns_skill(character, skill) VALUES(ch_record.name, skill_record.skill);
+  END IF;
+  END LOOP;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_auto_skill_trigger 
+AFTER UPDATE OF exp ON character
+FOR EACH ROW
+EXECUTE PROCEDURE check_auto_skill();
+
+CREATE OR REPLACE FUNCTION update_ch_stats_level() RETURNS trigger as $$
+DECLARE
+  class_initial_stats RECORD;
+  cur_level INTEGER;
+  new_level INTEGER;
+  add_life INTEGER;
+  add_power INTEGER;
+  add_str INTEGER;
+  add_def INTEGER;
+  add_speed INTEGER;
+BEGIN
+  cur_level := NEW.level;
+  SELECT * FROM class WHERE class.name = NEW.class 
+  INTO class_initial_stats;
+  
+  new_level := NEW.exp / 10000;
+  add_life := (new_level-cur_level)*class_initial_stats.life;
+  add_power := (new_level-cur_level)*class_initial_stats.power;
+  add_def := (new_level-cur_level)*class_initial_stats.def;
+  add_str := (new_level-cur_level)*class_initial_stats.str;
+  add_speed := (new_level-cur_level)*class_initial_stats.speed;
+
+  NEW.life := NEW.life + add_life;
+  NEW.str := NEW.str + add_str;
+  NEW.speed := NEW.speed + add_speed;
+  NEW.def := NEW.def + add_def;
+  NEW.power := NEW.power + add_power;
+  NEW.level := new_level;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_ch_stats_level_trigger
+BEFORE UPDATE OF exp ON character
+FOR EACH ROW
+EXECUTE PROCEDURE update_ch_stats_level();
+

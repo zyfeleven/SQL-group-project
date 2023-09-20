@@ -1,0 +1,147 @@
+create or replace function update_armour_stats_gem() returns trigger as $$
+declare
+	gem_record RECORD;
+	ch_record RECORD;
+	armour_record RECORD;
+	add_life INTEGER;
+	add_power INTEGER;
+  	add_str INTEGER;
+  	add_def INTEGER;
+  	add_speed INTEGER;
+begin
+	SELECT * FROM gem WHERE name = NEW.gem INTO gem_record;
+	SELECT * FROM armour_instance WHERE aid = NEW.aid INTO armour_record;
+	FOR ch_record IN EXECUTE 'SELECT * FROM character'
+	LOOP
+	IF ch_record.name = armour_record.cname
+	then
+	add_life := ch_record.life + gem_record.life;
+	add_power:= ch_record.power + gem_record.power;
+ 	add_str:= ch_record.str + gem_record.str;
+  	add_def:= ch_record.def + gem_record.def;
+  	add_speed:= ch_record.speed + gem_record.speed;
+	
+	update character set life=add_life where name=ch_record.name;
+	update character set power=add_power where name=ch_record.name;
+	update character set str=add_str where name=ch_record.name;
+	update character set def=add_def where name=ch_record.name;
+	update character set speed=add_speed where name=ch_record.name;
+	end if;
+	end loop;
+	return new;
+end;
+$$ LANGUAGE plpgsql;
+
+create trigger update_armour_gem_stats
+before insert on armour_gem
+for each row
+execute procedure update_armour_stats_gem();
+
+CREATE OR REPLACE FUNCTION check_gem_number_armour() RETURNS trigger as $$
+DECLARE
+  armour_record RECORD;
+  gem_number INTEGER;
+  max_number INTEGER;
+BEGIN
+  gem_number := 0;
+  SELECT num_slots FROM equipment, armour_instance, armour
+  WHERE NEW.aid = armour_instance.aid AND armour_instance.eid = armour.eid AND armour.eid = equipment.eid
+  INTO max_number;
+
+  FOR armour_record IN EXECUTE 'SELECT * FROM armour_gem'
+  
+  LOOP
+  IF NEW.aid = armour_record.aid THEN
+  gem_number := gem_number+1;
+  END IF;
+  END LOOP;
+  IF max_number <= gem_number THEN
+    RAISE EXCEPTION 'This equipment cant have more gems on it!';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_gem_number_armour_trigger
+BEFORE INSERT ON armour_gem
+FOR EACH ROW
+EXECUTE PROCEDURE check_gem_number_armour();
+
+create or replace function delete_armour_stats_gem() returns trigger as $$
+declare
+	gem_record RECORD;
+	ch_record RECORD;
+	armour_record RECORD;
+	add_life INTEGER;
+	add_power INTEGER;
+  	add_str INTEGER;
+  	add_def INTEGER;
+  	add_speed INTEGER;
+begin
+	SELECT * FROM gem WHERE name = OLD.gem INTO gem_record;
+	SELECT * FROM armour_instance WHERE aid = OLD.aid INTO armour_record;
+	FOR ch_record IN EXECUTE 'SELECT * FROM character'
+	LOOP
+	IF ch_record.name = armour_record.cname
+	then
+	add_life := ch_record.life - gem_record.life;
+	add_power:= ch_record.power - gem_record.power;
+ 	add_str:= ch_record.str - gem_record.str;
+  	add_def:= ch_record.def - gem_record.def;
+  	add_speed:= ch_record.speed - gem_record.speed;
+	
+	update character set life=add_life where name=ch_record.name;
+	update character set power=add_power where name=ch_record.name;
+	update character set str=add_str where name=ch_record.name;
+	update character set def=add_def where name=ch_record.name;
+	update character set speed=add_speed where name=ch_record.name;
+	end if;
+	end loop;
+	return new;
+end;
+$$ LANGUAGE plpgsql;
+
+create trigger delete_armour_gem_stats
+before delete on armour_gem
+for each row
+execute procedure delete_armour_stats_gem();
+
+CREATE OR REPLACE FUNCTION check_gem_and_armour_level() RETURNS trigger as $$
+DECLARE
+  armour_record RECORD;
+  gem_level INTEGER;
+BEGIN
+  SELECT min_level FROM gem, armour_gem WHERE gem.name = armour_gem.gem INTO gem_level;
+   
+  SELECT * FROM armour_instance, armour, equipment
+  WHERE armour_instance.aid = NEW.aid AND armour_instance.eid = armour.eid AND armour.eid = equipment.eid
+  INTO armour_record;
+
+  IF armour_record.min_level <= gem_level
+  THEN
+	RAISE EXCEPTION 'Gem_min_level is larger than Equipment_min_level!';
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger check_gem_and_armour_level_trigger
+before insert on armour_gem
+for each row
+execute procedure check_gem_and_armour_level();
+
+
+CREATE OR REPLACE FUNCTION update_gem_and_armour() RETURNS trigger as $$
+
+BEGIN
+  RAISE EXCEPTION 'It is not allowed to modify! You need to delete it first!';
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger update_gem_and_armour_trigger
+before update on armour_gem
+for each row
+execute procedure update_gem_and_armour();
+
